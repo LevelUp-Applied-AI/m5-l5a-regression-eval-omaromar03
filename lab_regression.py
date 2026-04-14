@@ -21,9 +21,6 @@ from sklearn.metrics import (
 import matplotlib.pyplot as plt
 
 
-# =========================
-# Task 1: Load + EDA
-# =========================
 def load_data(filepath="data/telecom_churn.csv"):
     df = pd.read_csv(filepath)
 
@@ -34,36 +31,37 @@ def load_data(filepath="data/telecom_churn.csv"):
     return df
 
 
-# =========================
-# Task 2: Split
-# =========================
 def split_data(df, target="churned"):
     X = df.drop(columns=[target])
     y = df[target]
 
-    if target == "churned":
-        stratify = y
-    else:
-        stratify = None
+    stratify = y if target == "churned" else None
 
-    return train_test_split(
-        X, y,
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
         test_size=0.2,
         random_state=42,
         stratify=stratify
     )
 
+    print(f"\nTrain size: {len(X_train)}, Test size: {len(X_test)}")
 
-# =========================
-# Helper: Preprocessing
-# =========================
+    if target == "churned":
+        print("Train churn rate:", y_train.mean())
+        print("Test churn rate:", y_test.mean())
+
+    return X_train, X_test, y_train, y_test
+
+
 def build_preprocessor(X):
-    categorical_cols = X.select_dtypes(include=["object"]).columns
-    numeric_cols = X.select_dtypes(exclude=["object"]).columns
+    X_temp = X.copy()
 
-    # drop id if exists
-    if "customer_id" in numeric_cols:
-        numeric_cols = numeric_cols.drop("customer_id")
+    if "customer_id" in X_temp.columns:
+        X_temp = X_temp.drop(columns=["customer_id"])
+
+    categorical_cols = X_temp.select_dtypes(include=["object", "string"]).columns
+    numeric_cols = X_temp.select_dtypes(exclude=["object", "string"]).columns
 
     preprocessor = ColumnTransformer([
         ("num", StandardScaler(), numeric_cols),
@@ -73,12 +71,11 @@ def build_preprocessor(X):
     return preprocessor
 
 
-# =========================
-# Task 3: Logistic Regression
-# =========================
-def logistic_pipeline(X_train, X_test, y_train, y_test):
+def build_logistic_pipeline(X_train, X_test, y_train, y_test):
+    X_train_model = X_train.drop(columns=["customer_id"], errors="ignore")
+    X_test_model = X_test.drop(columns=["customer_id"], errors="ignore")
 
-    preprocessor = build_preprocessor(X_train)
+    preprocessor = build_preprocessor(X_train_model)
 
     pipeline = Pipeline([
         ("preprocess", preprocessor),
@@ -89,8 +86,8 @@ def logistic_pipeline(X_train, X_test, y_train, y_test):
         ))
     ])
 
-    pipeline.fit(X_train, y_train)
-    y_pred = pipeline.predict(X_test)
+    pipeline.fit(X_train_model, y_train)
+    y_pred = pipeline.predict(X_test_model)
 
     print("\nClassification Report:\n")
     print(classification_report(y_test, y_pred))
@@ -101,35 +98,35 @@ def logistic_pipeline(X_train, X_test, y_train, y_test):
 
     return {
         "accuracy": float(accuracy_score(y_test, y_pred)),
-        "precision": float(precision_score(y_test, y_pred)),
-        "recall": float(recall_score(y_test, y_pred)),
-        "f1": float(f1_score(y_test, y_pred)),
+        "precision": float(precision_score(y_test, y_pred, zero_division=0)),
+        "recall": float(recall_score(y_test, y_pred, zero_division=0)),
+        "f1": float(f1_score(y_test, y_pred, zero_division=0)),
     }
 
 
-# =========================
-# Task 4: Ridge Regression
-# =========================
-def ridge_pipeline(df):
-
+def build_ridge_pipeline(df):
     X = df.drop(columns=["monthly_charges"])
     y = df["monthly_charges"]
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
+        X,
+        y,
         test_size=0.2,
         random_state=42
     )
 
-    preprocessor = build_preprocessor(X_train)
+    X_train_model = X_train.drop(columns=["customer_id"], errors="ignore")
+    X_test_model = X_test.drop(columns=["customer_id"], errors="ignore")
+
+    preprocessor = build_preprocessor(X_train_model)
 
     pipeline = Pipeline([
         ("preprocess", preprocessor),
         ("model", Ridge(alpha=1.0))
     ])
 
-    pipeline.fit(X_train, y_train)
-    y_pred = pipeline.predict(X_test)
+    pipeline.fit(X_train_model, y_train)
+    y_pred = pipeline.predict(X_test_model)
 
     mae = mean_absolute_error(y_test, y_pred)
     r2 = r2_score(y_test, y_pred)
@@ -138,24 +135,23 @@ def ridge_pipeline(df):
     print("MAE:", mae)
     print("R2:", r2)
 
-    return mae, r2
+    return {"mae": float(mae), "r2": float(r2)}
 
 
-# =========================
-# Task 5: Lasso Comparison
-# =========================
-def lasso_pipeline(df):
-
+def build_lasso_pipeline(df):
     X = df.drop(columns=["monthly_charges"])
     y = df["monthly_charges"]
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
+        X,
+        y,
         test_size=0.2,
         random_state=42
     )
 
-    preprocessor = build_preprocessor(X_train)
+    X_train_model = X_train.drop(columns=["customer_id"], errors="ignore")
+
+    preprocessor = build_preprocessor(X_train_model)
 
     ridge = Pipeline([
         ("preprocess", preprocessor),
@@ -167,8 +163,8 @@ def lasso_pipeline(df):
         ("model", Lasso(alpha=0.1))
     ])
 
-    ridge.fit(X_train, y_train)
-    lasso.fit(X_train, y_train)
+    ridge.fit(X_train_model, y_train)
+    lasso.fit(X_train_model, y_train)
 
     ridge_coef = ridge.named_steps["model"].coef_
     lasso_coef = lasso.named_steps["model"].coef_
@@ -177,16 +173,13 @@ def lasso_pipeline(df):
     print("Ridge:", ridge_coef[:10])
     print("Lasso:", lasso_coef[:10])
 
-    # comment:
-    # Lasso sets some coefficients to zero → removes weak/unimportant features
+    return {"ridge_coef": ridge_coef, "lasso_coef": lasso_coef}
 
 
-# =========================
-# Task 6: Cross Validation
-# =========================
-def cross_validation(X_train, y_train):
+def run_cross_validation(X_train, y_train):
+    X_train_model = X_train.drop(columns=["customer_id"], errors="ignore")
 
-    preprocessor = build_preprocessor(X_train)
+    preprocessor = build_preprocessor(X_train_model)
 
     pipeline = Pipeline([
         ("preprocess", preprocessor),
@@ -197,13 +190,13 @@ def cross_validation(X_train, y_train):
         ))
     ])
 
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    cv_splitter = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
     scores = cross_val_score(
         pipeline,
-        X_train,
+        X_train_model,
         y_train,
-        cv=cv,
+        cv=cv_splitter,
         scoring="accuracy"
     )
 
@@ -211,31 +204,31 @@ def cross_validation(X_train, y_train):
     print("Mean:", scores.mean())
     print("Std:", scores.std())
 
+    return {
+        "scores": scores,
+        "mean": float(scores.mean()),
+        "std": float(scores.std())
+    }
 
-# =========================
-# Task 7: Summary
-# =========================
+
 """
 Summary:
-- Features like contract type, tenure, and number of support calls appear important.
-- Model performs reasonably but recall is more critical due to churn imbalance.
-- Improving recall is important to catch more churn customers.
-- Future improvements: feature engineering, hyperparameter tuning, and threshold tuning.
+- Features like contract type, tenure, and number of support calls appear important for predicting churn.
+- Logistic regression achieved moderate performance, and recall is more important here because missing churners is costly.
+- Ridge regression performed reasonably well for predicting monthly charges.
+- Future improvements could include feature engineering, threshold tuning, and hyperparameter optimization.
 """
 
 
-# =========================
-# MAIN
-# =========================
 if __name__ == "__main__":
     df = load_data()
 
     X_train, X_test, y_train, y_test = split_data(df)
 
-    metrics = logistic_pipeline(X_train, X_test, y_train, y_test)
+    metrics = build_logistic_pipeline(X_train, X_test, y_train, y_test)
 
-    ridge_pipeline(df)
+    build_ridge_pipeline(df)
 
-    lasso_pipeline(df)
+    build_lasso_pipeline(df)
 
-    cross_validation(X_train, y_train)
+    run_cross_validation(X_train, y_train)
