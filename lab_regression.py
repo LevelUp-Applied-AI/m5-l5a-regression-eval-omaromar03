@@ -72,7 +72,7 @@ def build_preprocessor(X):
 
 
 # =========================
-# ✅ REQUIRED FUNCTION
+# REQUIRED FUNCTIONS
 # =========================
 def evaluate_classifier(y_true, y_pred):
     return {
@@ -80,6 +80,13 @@ def evaluate_classifier(y_true, y_pred):
         "precision": float(precision_score(y_true, y_pred, zero_division=0)),
         "recall": float(recall_score(y_true, y_pred, zero_division=0)),
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
+    }
+
+
+def evaluate_regressor(y_true, y_pred):
+    return {
+        "mae": float(mean_absolute_error(y_true, y_pred)),
+        "r2": float(r2_score(y_true, y_pred)),
     }
 
 
@@ -142,14 +149,13 @@ def build_ridge_pipeline(df):
     pipeline.fit(X_train_model, y_train)
     y_pred = pipeline.predict(X_test_model)
 
-    mae = mean_absolute_error(y_test, y_pred)
-    r2 = r2_score(y_test, y_pred)
+    metrics = evaluate_regressor(y_test, y_pred)
 
     print("\nRidge Regression:")
-    print("MAE:", mae)
-    print("R2:", r2)
+    print("MAE:", metrics["mae"])
+    print("R2:", metrics["r2"])
 
-    return {"mae": float(mae), "r2": float(r2)}
+    return metrics
 
 
 # =========================
@@ -234,16 +240,13 @@ def run_cross_validation(X_train, y_train):
 
 """
 Summary:
-- Features like contract type, tenure, and support calls are important.
+- Contract type, tenure, and support calls are important features.
 - Recall is more important due to class imbalance.
-- Ridge regression performed well on monthly charges.
-- Future improvements: feature engineering, tuning.
+- Ridge regression performs well for monthly charges.
+- Improvements: feature engineering and tuning.
 """
 
 
-# =========================
-# MAIN
-# =========================
 if __name__ == "__main__":
     df = load_data()
 
