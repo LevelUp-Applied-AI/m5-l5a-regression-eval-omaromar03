@@ -21,6 +21,9 @@ from sklearn.metrics import (
 import matplotlib.pyplot as plt
 
 
+# =========================
+# Load Data
+# =========================
 def load_data(filepath="data/telecom_churn.csv"):
     df = pd.read_csv(filepath)
 
@@ -31,29 +34,26 @@ def load_data(filepath="data/telecom_churn.csv"):
     return df
 
 
+# =========================
+# Split Data
+# =========================
 def split_data(df, target="churned"):
     X = df.drop(columns=[target])
     y = df[target]
 
     stratify = y if target == "churned" else None
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
+    return train_test_split(
+        X, y,
         test_size=0.2,
         random_state=42,
         stratify=stratify
     )
 
-    print(f"\nTrain size: {len(X_train)}, Test size: {len(X_test)}")
 
-    if target == "churned":
-        print("Train churn rate:", y_train.mean())
-        print("Test churn rate:", y_test.mean())
-
-    return X_train, X_test, y_train, y_test
-
-
+# =========================
+# Preprocessor
+# =========================
 def build_preprocessor(X):
     X_temp = X.copy()
 
@@ -71,7 +71,23 @@ def build_preprocessor(X):
     return preprocessor
 
 
+# =========================
+# ✅ REQUIRED FUNCTION
+# =========================
+def evaluate_classifier(y_true, y_pred):
+    return {
+        "accuracy": float(accuracy_score(y_true, y_pred)),
+        "precision": float(precision_score(y_true, y_pred, zero_division=0)),
+        "recall": float(recall_score(y_true, y_pred, zero_division=0)),
+        "f1": float(f1_score(y_true, y_pred, zero_division=0)),
+    }
+
+
+# =========================
+# Logistic Regression
+# =========================
 def build_logistic_pipeline(X_train, X_test, y_train, y_test):
+
     X_train_model = X_train.drop(columns=["customer_id"], errors="ignore")
     X_test_model = X_test.drop(columns=["customer_id"], errors="ignore")
 
@@ -96,21 +112,19 @@ def build_logistic_pipeline(X_train, X_test, y_train, y_test):
     ConfusionMatrixDisplay(cm).plot()
     plt.show()
 
-    return {
-        "accuracy": float(accuracy_score(y_test, y_pred)),
-        "precision": float(precision_score(y_test, y_pred, zero_division=0)),
-        "recall": float(recall_score(y_test, y_pred, zero_division=0)),
-        "f1": float(f1_score(y_test, y_pred, zero_division=0)),
-    }
+    return evaluate_classifier(y_test, y_pred)
 
 
+# =========================
+# Ridge Regression
+# =========================
 def build_ridge_pipeline(df):
+
     X = df.drop(columns=["monthly_charges"])
     y = df["monthly_charges"]
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
+        X, y,
         test_size=0.2,
         random_state=42
     )
@@ -138,13 +152,16 @@ def build_ridge_pipeline(df):
     return {"mae": float(mae), "r2": float(r2)}
 
 
+# =========================
+# Lasso Comparison
+# =========================
 def build_lasso_pipeline(df):
+
     X = df.drop(columns=["monthly_charges"])
     y = df["monthly_charges"]
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
+        X, y,
         test_size=0.2,
         random_state=42
     )
@@ -176,7 +193,11 @@ def build_lasso_pipeline(df):
     return {"ridge_coef": ridge_coef, "lasso_coef": lasso_coef}
 
 
+# =========================
+# Cross Validation
+# =========================
 def run_cross_validation(X_train, y_train):
+
     X_train_model = X_train.drop(columns=["customer_id"], errors="ignore")
 
     preprocessor = build_preprocessor(X_train_model)
@@ -190,13 +211,13 @@ def run_cross_validation(X_train, y_train):
         ))
     ])
 
-    cv_splitter = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
     scores = cross_val_score(
         pipeline,
         X_train_model,
         y_train,
-        cv=cv_splitter,
+        cv=cv,
         scoring="accuracy"
     )
 
@@ -213,19 +234,22 @@ def run_cross_validation(X_train, y_train):
 
 """
 Summary:
-- Features like contract type, tenure, and number of support calls appear important for predicting churn.
-- Logistic regression achieved moderate performance, and recall is more important here because missing churners is costly.
-- Ridge regression performed reasonably well for predicting monthly charges.
-- Future improvements could include feature engineering, threshold tuning, and hyperparameter optimization.
+- Features like contract type, tenure, and support calls are important.
+- Recall is more important due to class imbalance.
+- Ridge regression performed well on monthly charges.
+- Future improvements: feature engineering, tuning.
 """
 
 
+# =========================
+# MAIN
+# =========================
 if __name__ == "__main__":
     df = load_data()
 
     X_train, X_test, y_train, y_test = split_data(df)
 
-    metrics = build_logistic_pipeline(X_train, X_test, y_train, y_test)
+    build_logistic_pipeline(X_train, X_test, y_train, y_test)
 
     build_ridge_pipeline(df)
 
